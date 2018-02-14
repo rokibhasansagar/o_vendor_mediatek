@@ -1,4 +1,4 @@
-From 761f370fd3ed00aa31de3cc745e8d4479151a06b Mon Sep 17 00:00:00 2001
+From b737c64ed265f4b2c6094f8efbb320e76b99b888 Mon Sep 17 00:00:00 2001
 From: Mister Oyster <oysterized@gmail.com>
 Date: Sun, 3 Sep 2017 16:45:22 +0200
 Subject: [PATCH] build: soong: add BOARD_USES_MTK_HARDWARE (v2)
@@ -14,10 +14,10 @@ Change-Id: I9affcbc31411c9f1b22ae9ce19e12144012d0cc7
  3 files changed, 16 insertions(+)
 
 diff --git a/android/config.go b/android/config.go
-index 686eeb8..268d121 100644
+index aa0ac82..f4065cb 100644
 --- a/android/config.go
 +++ b/android/config.go
-@@ -473,6 +473,10 @@ func (c *deviceConfig) BtConfigIncludeDir() string {
+@@ -519,6 +519,10 @@ func (c *deviceConfig) BtConfigIncludeDir() string {
  	return String(c.config.ProductVariables.BtConfigIncludeDir)
  }
  
@@ -25,14 +25,14 @@ index 686eeb8..268d121 100644
 +        return Bool(c.config.ProductVariables.Mtk_hardware)
 +}
 +
- func (c *deviceConfig) NativeCoverageEnabled() bool {
- 	return Bool(c.config.ProductVariables.NativeCoverage)
+ func (c *deviceConfig) DeviceKernelHeaderDirs() []string {
+ 	return c.config.ProductVariables.DeviceKernelHeaders
  }
 diff --git a/android/variable.go b/android/variable.go
-index 13456f1..40ecafd 100644
+index 6113063..2adc563 100644
 --- a/android/variable.go
 +++ b/android/variable.go
-@@ -60,6 +60,13 @@ type variableProperties struct {
+@@ -69,6 +69,13 @@ type variableProperties struct {
  			Cflags []string
  		}
  
@@ -46,19 +46,19 @@ index 13456f1..40ecafd 100644
  		// treble is true when a build is a Treble compliant device.  This is automatically set when
  		// a build is shipped with Android O, but can be overriden.  This controls such things as
  		// the sepolicy split and enabling the Treble linker namespaces.
-@@ -133,6 +140,7 @@ type productVariables struct {
+@@ -143,6 +150,7 @@ type productVariables struct {
  	Eng                        *bool `json:",omitempty"`
  	EnableCFI                  *bool `json:",omitempty"`
- 	Treble                     *bool `json:",omitempty"`
+ 	Device_uses_hwc2           *bool `json:",omitempty"`
 +	Mtk_hardware               *bool `json:",omitempty"`
- 
- 	VendorPath *string `json:",omitempty"`
+ 	Treble                     *bool `json:",omitempty"`
+ 	Pdk                        *bool `json:",omitempty"`
  
 diff --git a/cc/compiler.go b/cc/compiler.go
-index aed4480..415eed3 100644
+index c7fcca7..07fdf61 100644
 --- a/cc/compiler.go
 +++ b/cc/compiler.go
-@@ -314,6 +314,10 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags) Flag
+@@ -336,6 +336,10 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags) Flag
  			flags.GlobalFlags = append(flags.GlobalFlags, "-D__BRILLO__")
  		}
  
@@ -70,5 +70,5 @@ index aed4480..415eed3 100644
  			if Bool(compiler.Properties.Rtti) {
  				flags.CppFlags = append(flags.CppFlags, "-frtti")
 -- 
-2.11.0
+2.14.1
 
