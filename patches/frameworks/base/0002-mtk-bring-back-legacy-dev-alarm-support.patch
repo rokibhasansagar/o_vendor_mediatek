@@ -1,6 +1,6 @@
-From b51abbffc027dee8baa7c5552fc3b20407477275 Mon Sep 17 00:00:00 2001
-From: Mister Oyster <oysterized@gmail.com>
-Date: Sun, 7 Jan 2018 14:22:52 +0100
+From 1d63e15119ada24bc78c5b06b051f9313497a813 Mon Sep 17 00:00:00 2001
+From: Moyster <oysterized@gmail.com>
+Date: Wed, 14 Feb 2018 14:25:40 +0100
 Subject: [PATCH] mtk: bring back legacy /dev/alarm support
 
 Revert "AlarmManagerService: explain some timerfd_create() failures"
@@ -8,27 +8,50 @@ This reverts commit a0126e0857481866dab5060384d611c83ca53d0e.
 
 Revert "AlarmManagerService: remove legacy /dev/alarm support"
 This reverts commit d7151c06f11c05ad3dcab175a6e4b4ea694dab96.
-
-Revert "Remove dependency on android_alarm.h."
-This reverts commit 338893e47ed8e2a913e5def987469647809cdbc6.
 ---
- .../jni/com_android_server_AlarmManagerService.cpp | 176 +++++++++++++--------
- 1 file changed, 109 insertions(+), 67 deletions(-)
+ .../jni/com_android_server_AlarmManagerService.cpp | 204 ++++++++++++++-------
+ 1 file changed, 137 insertions(+), 67 deletions(-)
 
 diff --git a/services/core/jni/com_android_server_AlarmManagerService.cpp b/services/core/jni/com_android_server_AlarmManagerService.cpp
-index 3a0273d8c3c..407c0726e52 100644
+index bcb0b4fcbe0..ab446b44f20 100644
 --- a/services/core/jni/com_android_server_AlarmManagerService.cpp
 +++ b/services/core/jni/com_android_server_AlarmManagerService.cpp
-@@ -37,28 +37,13 @@
- #include <errno.h>
- #include <unistd.h>
+@@ -39,26 +39,39 @@
  #include <linux/ioctl.h>
-+#include <linux/android_alarm.h>
  #include <linux/rtc.h>
  
 -#include <array>
  #include <memory>
  
++//--------------------------------------------------------------------------
++// The android_alarm.h header has been deleted from the kernel headers.
++// Add only the parts still needed, this should be deleted in the future.
++#include <linux/ioctl.h>
++
++enum android_alarm_type {
++  ANDROID_ALARM_RTC_WAKEUP,
++  ANDROID_ALARM_RTC,
++  ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
++  ANDROID_ALARM_ELAPSED_REALTIME,
++  ANDROID_ALARM_SYSTEMTIME,
++  ANDROID_ALARM_TYPE_COUNT,
++};
++
++enum android_alarm_return_flags {
++  ANDROID_ALARM_RTC_WAKEUP_MASK = 1U << ANDROID_ALARM_RTC_WAKEUP,
++  ANDROID_ALARM_RTC_MASK = 1U << ANDROID_ALARM_RTC,
++  ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP_MASK = 1U << ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP,
++  ANDROID_ALARM_ELAPSED_REALTIME_MASK = 1U << ANDROID_ALARM_ELAPSED_REALTIME,
++  ANDROID_ALARM_SYSTEMTIME_MASK = 1U << ANDROID_ALARM_SYSTEMTIME,
++  ANDROID_ALARM_TIME_CHANGE_MASK = 1U << 16
++};
++
++#define ALARM_IOW(c,type,size) _IOW('a', (c) | ((type) << 4), size)
++#define ANDROID_ALARM_WAIT _IO('a', 1)
++#define ANDROID_ALARM_SET(type) ALARM_IOW(2, type, struct timespec)
++#define ANDROID_ALARM_SET_RTC _IOW('a', 5, struct timespec)
++//--------------------------------------------------------------------------
++
  namespace android {
  
 -static constexpr int ANDROID_ALARM_TIME_CHANGE_MASK = 1 << 16;
@@ -49,7 +72,7 @@ index 3a0273d8c3c..407c0726e52 100644
  static const size_t N_ANDROID_TIMERFDS = ANDROID_ALARM_TYPE_COUNT + 1;
  static const clockid_t android_alarm_to_clockid[N_ANDROID_TIMERFDS] = {
      CLOCK_REALTIME_ALARM,
-@@ -68,39 +53,98 @@ static const clockid_t android_alarm_to_clockid[N_ANDROID_TIMERFDS] = {
+@@ -68,39 +81,98 @@ static const clockid_t android_alarm_to_clockid[N_ANDROID_TIMERFDS] = {
      CLOCK_MONOTONIC,
      CLOCK_REALTIME,
  };
@@ -161,7 +184,7 @@ index 3a0273d8c3c..407c0726e52 100644
          errno = EINVAL;
          return -1;
      }
-@@ -118,7 +162,7 @@ int AlarmImpl::set(int type, struct timespec *ts)
+@@ -118,7 +190,7 @@ int AlarmImpl::set(int type, struct timespec *ts)
      return timerfd_settime(fds[type], TFD_TIMER_ABSTIME, &spec, NULL);
  }
  
@@ -170,7 +193,7 @@ index 3a0273d8c3c..407c0726e52 100644
  {
      struct rtc_time rtc;
      struct tm tm, *gmtime_res;
-@@ -169,7 +213,7 @@ done:
+@@ -169,7 +241,7 @@ done:
      return res;
  }
  
@@ -179,7 +202,7 @@ index 3a0273d8c3c..407c0726e52 100644
  {
      epoll_event events[N_ANDROID_TIMERFDS];
  
-@@ -239,12 +283,25 @@ static jint android_server_AlarmManagerService_setKernelTimezone(JNIEnv*, jobjec
+@@ -239,12 +311,25 @@ static jint android_server_AlarmManagerService_setKernelTimezone(JNIEnv*, jobjec
      return 0;
  }
  
@@ -205,7 +228,7 @@ index 3a0273d8c3c..407c0726e52 100644
      FILE *file = fopen(hctosys_path.string(), "re");
      if (!file) {
          ALOGE("failed to open %s: %s", hctosys_path.string(), strerror(errno));
-@@ -298,48 +355,23 @@ static int wall_clock_rtc()
+@@ -298,48 +383,23 @@ static int wall_clock_rtc()
      return -1;
  }
  
@@ -261,7 +284,7 @@ index 3a0273d8c3c..407c0726e52 100644
              close(epollfd);
              for (size_t j = 0; j < i; j++) {
                  close(fds[j]);
-@@ -348,16 +380,16 @@ static jlong android_server_AlarmManagerService_init(JNIEnv*, jobject)
+@@ -348,16 +408,16 @@ static jlong android_server_AlarmManagerService_init(JNIEnv*, jobject)
          }
      }
  
@@ -281,7 +304,7 @@ index 3a0273d8c3c..407c0726e52 100644
              delete ret;
              return 0;
          }
-@@ -371,7 +403,7 @@ static jlong android_server_AlarmManagerService_init(JNIEnv*, jobject)
+@@ -371,7 +431,7 @@ static jlong android_server_AlarmManagerService_init(JNIEnv*, jobject)
      int err = timerfd_settime(fds[ANDROID_ALARM_TYPE_COUNT],
              TFD_TIMER_ABSTIME | TFD_TIMER_CANCEL_ON_SET, &spec, NULL);
      if (err < 0) {
@@ -290,7 +313,7 @@ index 3a0273d8c3c..407c0726e52 100644
          delete ret;
          return 0;
      }
-@@ -379,6 +411,16 @@ static jlong android_server_AlarmManagerService_init(JNIEnv*, jobject)
+@@ -379,6 +439,16 @@ static jlong android_server_AlarmManagerService_init(JNIEnv*, jobject)
      return reinterpret_cast<jlong>(ret);
  }
  
