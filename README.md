@@ -1,4 +1,4 @@
-# Pre-Oreo Mediatek common-tree
+# Pre-Oreo Mediatek devices common-tree
 > such repo, much nice, wow!
 
 # How to download ?
@@ -11,15 +11,15 @@ then simply `repo sync` your sources
 # How to use ?
 Include both `VendorConfig.mk` & `VendorProduct.mk` in your device tree like so :  
 - `BoardConfig.mk` :  
-`-include vendor/mediatek/VendorConfig.mk`  
+`include vendor/mediatek/VendorConfig.mk`  
   
 - `device(_product).mk` :  
-`-include vendor/mediatek/VendorProduct.mk`  
+`include vendor/mediatek/VendorProduct.mk`  
 Note: add these lines at the bottom of the mentioned files
 
 # How to apply the patches ?
 Patches located in the patches folder can be applied from the root of your android sources :  
-`. vendor/mediatek/install.sh` & `. vendor/mediatek/uninstall.sh` 
+`. vendor/mediatek/patches/install.sh` & `. vendor/mediatek/patches/uninstall.sh` 
 
 # How to configure libshim ?
 ### > Libshim flags
